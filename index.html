@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>♦️ Tournoi Chkobba 2K26/2K27</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            /* Fond rose clair avec un motif de carreaux (CSS pattern) */
+            background-color: #fff0f5; 
+            background-image: 
+              linear-gradient(135deg, #ffb6c1 25%, transparent 25%), 
+              linear-gradient(225deg, #ffb6c1 25%, transparent 25%), 
+              linear-gradient(45deg, #ffb6c1 25%, transparent 25%), 
+              linear-gradient(315deg, #ffb6c1 25%, #fff0f5 25%);
+            background-position:  10px 0, 10px 0, 0 0, 0 0;
+            background-size: 20px 20px;
+            background-repeat: repeat;
+            
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(220, 20, 60, 0.15);
+            border-top: 6px solid #dc143c; /* Rouge carte */
+            width: 100%;
+            max-width: 450px;
+            height: fit-content;
+        }
+        h1, h2 { text-align: center; color: #dc143c; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 1px; }
+        .saison { display: block; font-size: 0.5em; color: #777; margin-top: 5px; }
+        
+        /* Style Classement */
+        .joueur {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 15px; margin-bottom: 10px; background: #fff;
+            border: 1px solid #ffb6c1; border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        }
+        .nom { font-size: 1.2em; font-weight: bold; color: #444; }
+        .score { font-size: 1.2em; font-weight: bold; color: #dc143c; background: #ffe4e1; padding: 5px 15px; border-radius: 20px; border: 1px solid #ffb6c1; }
+        
+        /* Style Historique */
+        .historique-item {
+            font-size: 0.95em; color: #555; padding: 12px 10px;
+            border-bottom: 1px dashed #ffb6c1; display: flex; flex-direction: column; gap: 4px;
+        }
+        .historique-item:last-child { border-bottom: none; }
+        .date { font-size: 0.85em; color: #888; }
+        .pts-plus { color: #dc143c; font-weight: bold; background: #ffe4e1; padding: 2px 6px; border-radius: 4px; }
+        .pts-minus { color: #555; font-weight: bold; background: #eee; padding: 2px 6px; border-radius: 4px; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+    <div class="container">
+        <h1>♦️ Chkobba <span class="saison">Saison 2K26 / 2K27</span></h1>
+        <div id="liste-joueurs">Chargement...</div>
+    </div>
+
+    <div class="container">
+        <h2>⏱️ Derniers plis</h2>
+        <div id="liste-historique">Chargement...</div>
+    </div>
+
+    <script>
+        // 1. Initialisation (N'oublie pas tes clés !)
+        const supabaseUrl = 'https://xcngfsaepvplxkyssuji.supabase.co'; 
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhjbmdmc2FlcHZwbHhreXNzdWppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA3MDc4MDMsImV4cCI6MjEwNjI4MzgwM30.Sa6niP0WPImXVxmxS8nok2WwVy8OYV6E6uOQjdgrhLE'; // Utilise bien la clé publique "anon"
+        
+        // On cible le NOUVEAU schéma
+        const db = supabase.createClient(supabaseUrl, supabaseKey, {
+            db: { schema: 'chkobba' } 
+        });
+
+        async function chargerClassement() {
+            const listeJoueursDiv = document.getElementById('liste-joueurs');
+            const { data: joueurs, error } = await db
+                .from('joueurs')
+                .select('*')
+                .order('score', { ascending: false });
+
+            if (error) return;
+
+            listeJoueursDiv.innerHTML = '';
+            joueurs.forEach((joueur, index) => {
+                const div = document.createElement('div');
+                div.className = 'joueur';
+                let icone = index === 0 ? '👑 ' : `<span style="font-size: 0.8em; color: #dc143c;">♦️ </span>`;
+                // Dans la fonction chargerClassement() :
+                let icone = index === 0 ? '👑 ' : `<span style="font-size: 0.8em; color: #dc143c;">♦️ </span>`;
+                div.innerHTML = `
+                    <span class="nom">
+                        ${icone}${joueur.nom}
+                        <span style="font-size: 0.75em; color: #888; margin-left: 8px; font-weight: normal;">(⚔️ ${joueur.matchs_joues} matchs)</span>
+                    </span>
+                    <span class="score">${joueur.score} pts</span>
+                `;
+                listeJoueursDiv.appendChild(div);
+            });
+        }
+
+        async function chargerHistorique() {
+            const listeHistDiv = document.getElementById('liste-historique');
+            
+            const { data: actions, error } = await db
+                .from('historique')
+                .select('points_modifies, date_action, joueurs(nom)')
+                .order('date_action', { ascending: false })
+                .limit(10);
+
+            if (error) return;
+
+            listeHistDiv.innerHTML = '';
+            if (actions.length === 0) {
+                listeHistDiv.innerHTML = '<p style="text-align:center; color:#888;">Aucune partie enregistrée.</p>';
+                return;
+            }
+
+            actions.forEach(action => {
+                const div = document.createElement('div');
+                div.className = 'historique-item';
+                
+                const date = new Date(action.date_action);
+                const dateStr = date.toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute:'2-digit' });
+                
+                const pts = action.points_modifies;
+                const classPts = pts > 0 ? 'pts-plus' : 'pts-minus';
+                const sign = pts > 0 ? '+' : ''; 
+                const nom = action.joueurs ? action.joueurs.nom : 'Inconnu';
+
+                div.innerHTML = `
+                    <span class="date">${dateStr}</span>
+                    <span><span class="${classPts}">${sign}${pts}</span> pour <strong>${nom}</strong></span>
+                `;
+                listeHistDiv.appendChild(div);
+            });
+        }
+
+        function ecouterChangements() {
+            db.channel('chkobba-realtime')
+                .on('postgres_changes', { event: '*', schema: 'chkobba', table: 'joueurs' }, chargerClassement)
+                .on('postgres_changes', { event: 'INSERT', schema: 'chkobba', table: 'historique' }, chargerHistorique)
+                .subscribe();
+        }
+
+        chargerClassement();
+        chargerHistorique();
+        ecouterChangements();
+    </script>
+</body>
+</html>

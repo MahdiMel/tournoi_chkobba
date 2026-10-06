@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⚙️ Admin - Classement</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            /* Fond rose clair avec un motif de carreaux (CSS pattern) */
+            background-color: #fff0f5; 
+            background-image: 
+              linear-gradient(135deg, #ffb6c1 25%, transparent 25%), 
+              linear-gradient(225deg, #ffb6c1 25%, transparent 25%), 
+              linear-gradient(45deg, #ffb6c1 25%, transparent 25%), 
+              linear-gradient(315deg, #ffb6c1 25%, #fff0f5 25%);
+            background-position:  10px 0, 10px 0, 0 0, 0 0;
+            background-size: 20px 20px;
+            background-repeat: repeat;
+            
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(220, 20, 60, 0.15);
+            border-top: 6px solid #dc143c; /* Rouge carte */
+            width: 100%;
+            max-width: 450px;
+            height: fit-content;
+        }
+        h1, h2 { text-align: center; color: #dc143c; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 1px; }
+        .saison { display: block; font-size: 0.5em; color: #777; margin-top: 5px; }
+        
+        /* Style Classement */
+        .joueur {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 15px; margin-bottom: 10px; background: #fff;
+            border: 1px solid #ffb6c1; border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        }
+        .nom { font-size: 1.2em; font-weight: bold; color: #444; }
+        .score { font-size: 1.2em; font-weight: bold; color: #dc143c; background: #ffe4e1; padding: 5px 15px; border-radius: 20px; border: 1px solid #ffb6c1; }
+        
+        /* Style Historique */
+        .historique-item {
+            font-size: 0.95em; color: #555; padding: 12px 10px;
+            border-bottom: 1px dashed #ffb6c1; display: flex; flex-direction: column; gap: 4px;
+        }
+        .historique-item:last-child { border-bottom: none; }
+        .date { font-size: 0.85em; color: #888; }
+        .pts-plus { color: #dc143c; font-weight: bold; background: #ffe4e1; padding: 2px 6px; border-radius: 4px; }
+        .pts-minus { color: #555; font-weight: bold; background: #eee; padding: 2px 6px; border-radius: 4px; }
+    </style>
+    <!-- Import de la librairie Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+    <div class="container">
+        <h1>⚙️ Gestion du Classement</h1>
+
+        <!-- Formulaire de connexion -->
+        <div id="login-section">
+            <p>Connecte-toi avec ton compte administrateur Supabase :</p>
+            <input type="email" id="email" placeholder="Email admin" required>
+            <input type="password" id="password" placeholder="Mot de passe" required>
+            <button class="btn-primary" onclick="connexion()">Se connecter</button>
+            <p id="login-msg" style="color: red; text-align: center;"></p>
+        </div>
+
+        <!-- Panneau d'administration -->
+        <div id="admin-section">
+            <div class="header-admin">
+                <span>Connecté en tant qu'admin ✅</span>
+                <button class="btn-logout" onclick="deconnexion()">Déconnexion</button>
+            </div>
+            
+            <!-- Liste pour modifier les points -->
+            <div id="liste-joueurs-admin">Chargement...</div>
+
+            <!-- Historique des actions -->
+            <div class="section-historique">
+                <h2>⏱️ Historique des actions</h2>
+                <div id="liste-historique-admin">Chargement...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 1. Initialisation de Supabase
+        const supabaseUrl = 'https://xcngfsaepvplxkyssuji.supabase.co'; // Ton URL corrigée
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhjbmdmc2FlcHZwbHhreXNzdWppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA3MDc4MDMsImV4cCI6MjEwNjI4MzgwM30.Sa6niP0WPImXVxmxS8nok2WwVy8OYV6E6uOQjdgrhLE'; // Utilise bien la clé publique "anon"
+        
+        const db = supabase.createClient(supabaseUrl, supabaseKey, {
+            db: { schema: 'chkobba' }
+        });
+
+        const loginSection = document.getElementById('login-section');
+        const adminSection = document.getElementById('admin-section');
+        const loginMsg = document.getElementById('login-msg');
+
+        // 2. Vérifier la session
+        async function verifierSession() {
+            const { data: { session } } = await db.auth.getSession();
+            if (session) {
+                afficherPanneauAdmin();
+            }
+        }
+
+        // 3. Connexion
+        async function connexion() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            loginMsg.innerText = "Connexion...";
+
+            const { error } = await db.auth.signInWithPassword({ email, password });
+            
+            if (error) {
+                loginMsg.innerText = "Erreur : " + error.message;
+            } else {
+                loginMsg.innerText = "";
+                afficherPanneauAdmin();
+            }
+        }
+
+        // 4. Déconnexion
+        async function deconnexion() {
+            await db.auth.signOut();
+            adminSection.style.display = 'none';
+            loginSection.style.display = 'flex';
+        }
+
+        // 5. Afficher le panneau et charger les données
+        function afficherPanneauAdmin() {
+            loginSection.style.display = 'none';
+            adminSection.style.display = 'block';
+            
+            chargerAmisAdmin();
+            chargerHistoriqueAdmin();
+        }
+
+        // 6. Charger la liste des joueurs avec les boutons
+        async function chargerAmisAdmin() {
+            const listeDiv = document.getElementById('liste-joueurs-admin');
+            const { data: joueurs, error } = await db
+                .from('joueurs')
+                .select('*')
+                .order('score', { ascending: false });
+
+            if (error) return console.error(error);
+
+            listeDiv.innerHTML = '';
+            joueurs.forEach(ami => {
+                const div = document.createElement('div');
+                div.className = 'ami-admin';
+                div.innerHTML = `
+                    <div>
+                        <strong>${joueur.nom}</strong><br>
+                        <span style="font-size: 0.85em; color: #666;">${joueur.score} pts | ${joueur.matchs_joues} matchs</span>
+                    </div>
+                    <div class="actions-btn" style="display: flex; align-items: center; flex-wrap: wrap; gap: 5px;">
+                        <!-- Boutons pour le score -->
+                        <button class="btn-action minus" onclick="modifierScore('${joueur.id}', ${joueur.score}, -1)">-1 pt</button>
+                        <button class="btn-action plus" onclick="modifierScore('${joueur.id}', ${joueur.score}, 1)">+1 pt</button>
+                        <button class="btn-action plus" onclick="modifierScore('${joueur.id}', ${joueur.score}, 2)">+2</button>
+
+                        <span style="color: #ccc; margin: 0 5px;">|</span>
+
+                        <!-- Boutons pour les matchs -->
+                        <button class="btn-action minus" onclick="modifierMatchs('${joueur.id}', ${joueur.matchs_joues}, -1)">-1 ⚔️</button>
+                        <button class="btn-action plus" onclick="modifierMatchs('${joueur.id}', ${joueur.matchs_joues}, 1)">+1 ⚔️</button>
+                    </div>
+                `;
+                listeDiv.appendChild(div);
+            });
+        }
+
+        // 7. Charger l'historique pour l'admin
+        async function chargerHistoriqueAdmin() {
+            const listeHistDiv = document.getElementById('liste-historique-admin');
+            
+            // Correction ici : joueurs(nom) au lieu de amis(nom)
+            const { data: actions, error } = await db
+                .from('historique')
+                .select('points_modifies, date_action, joueurs(nom)')
+                .order('date_action', { ascending: false })
+                .limit(10);
+
+            if (error) {
+                console.error("Erreur de chargement de l'historique:", error);
+                return;
+            }
+
+            listeHistDiv.innerHTML = '';
+            if (actions.length === 0) {
+                listeHistDiv.innerHTML = '<p style="text-align:center; color:#888;">Aucune activité récente.</p>';
+                return;
+            }
+
+            actions.forEach(action => {
+                const div = document.createElement('div');
+                div.className = 'historique-item';
+                
+                const date = new Date(action.date_action);
+                const dateStr = date.toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute:'2-digit', second:'2-digit' });
+                
+                const pts = action.points_modifies;
+                const classPts = pts > 0 ? 'pts-plus' : 'pts-minus';
+                const sign = pts > 0 ? '+' : ''; 
+                
+                // Correction ici : action.joueurs.nom au lieu de action.amis.nom
+                const nom = action.joueurs ? action.joueurs.nom : 'Joueur inconnu';
+
+                div.innerHTML = `
+                    <span class="date">${dateStr}</span>
+                    <span><span class="${classPts}">${sign}${pts} pts</span> pour <strong>${nom}</strong></span>
+                `;
+                listeHistDiv.appendChild(div);
+            });
+        }
+
+        // 8. Logique de modification des points et d'historique
+        async function modifierScore(idCible, scoreActuel, pointsAjoutes) {
+            const nouveauScore = scoreActuel + pointsAjoutes;
+
+            // 1. Mise à jour du score
+            const { error: errorUpdate } = await db
+                .from('joueurs')
+                .update({ score: nouveauScore })
+                .eq('id', idCible);
+
+            if (errorUpdate) {
+                alert("Erreur lors de la modification : " + errorUpdate.message);
+                return;
+            }
+
+            // 2. Ajout de la trace dans l'historique
+            // Correction ici : la colonne est joueur_id (et non ami_id)
+            const { error: errorInsert } = await db
+                .from('historique')
+                .insert({ joueur_id: idCible, points_modifies: pointsAjoutes });
+
+            if (errorInsert) {
+                console.error("Erreur lors de l'insertion dans l'historique:", errorInsert);
+            }
+
+            // Rafraîchir les listes
+            chargerAmisAdmin();
+            chargerHistoriqueAdmin();
+        }
+
+        // 9. Logique de modification des matchs joués
+        async function modifierMatchs(idCible, matchsActuels, ajout) {
+            const nouveauxMatchs = matchsActuels + ajout;
+
+            const { error } = await db
+                .from('joueurs')
+                .update({ matchs_joues: nouveauxMatchs })
+                .eq('id', idCible);
+
+            if (error) {
+                alert("Erreur lors de la modification des matchs : " + error.message);
+                return;
+            }
+
+            // Remplace "chargerJoueursAdmin()" par le nom de la fonction que tu utilises pour recharger ta liste (ex: chargerAmisAdmin)
+            chargerJoueursAdmin();
+        }
+
+        // Lancer la vérification au démarrage
+        verifierSession();
+    </script>
+</body>
+</html>
